@@ -1,5 +1,5 @@
 from http.client import responses
-from flask import Flask, request, render_template,redirect,flash
+from flask import Flask, request, render_template,redirect,flash, session
 from flask_debugtoolbar import DebugToolbarExtension
 from surveys import satisfaction_survey
 
@@ -8,7 +8,6 @@ app.config['SECRET_KEY'] = "oh-so-secret"
 app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 debug = DebugToolbarExtension(app)
 
-responses=[]
 @app.route('/')
 def index():
     """Returns starting page with survey title and instructions"""
@@ -16,18 +15,26 @@ def index():
     instructions = satisfaction_survey.instructions
     return render_template("start.html",title=title, instructions=instructions)
 
+@app.route('/begin', methods = ["POST"])
+def begin_survey():
+    session['responses'] = []
+    return redirect("/question/0")
+
 @app.route('/question/<int:question_num>')
 def quest(question_num):
     """Show page with appropriately numbered question"""
-    #if len(responses) == 0:
-    #   return redirect("/")
+    response = session.get('responses')
     
-    if len(responses) == len(satisfaction_survey.questions):
-        return redirect("/")
+    if (response is None) :
+       return redirect("/")
+    
+    if len(response) == len(satisfaction_survey.questions):
+        return redirect("/thanks")
 
-    if len(responses) != (question_num):
-        flash("You have skipped ahead, returning you to your question")
-        return redirect(f"/question/{len(responses)}")
+    if len(response) != (question_num):
+        flash("Returning you to your question")
+        return redirect(f"/question/{len(response)}")
+
     question = satisfaction_survey.questions[question_num]
     choices =question.choices    
     return render_template("question.html", question=question, choices=choices)
@@ -37,7 +44,10 @@ def get_answer():
     """Get response and move to next question"""
     
     survey_answer=request.form["s_question"]
+    
+    responses = session['responses']
     responses.append(survey_answer)
+    session['responses'] = responses
     
     if len(responses) == len(satisfaction_survey.questions):
         return redirect("/thanks")
@@ -46,6 +56,6 @@ def get_answer():
 
 @app.route("/thanks")
 def thanks():
-    """THank you page for completing the survey"""
+    """Thank you page for completing the survey"""
 
     return render_template("/thanks.html")
